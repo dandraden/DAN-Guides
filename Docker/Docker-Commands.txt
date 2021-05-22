@@ -1,0 +1,121 @@
+#
+#IBM/DB2
+
+docker run -it -d --name mydb2 -h mydb2 --privileged=true -p 50000:50000 -e LICENSE=accept -e DB2INST1_PASSWORD=Qq123456@@ -e DBNAME=testdb -v /Users/dan/Library/Mobile\ Documents/com~apple~CloudDocs/Personal/Projects/Docker/DB2:/database ibmcom/db2
+
+
+docker exec -ti mydb2 bash 
+
+su - db2inst1
+
+#
+#Oracle 
+
+#download the oracle binaries
+
+cd /Users/dan/Library/Mobile\ Documents/com~apple~CloudDocs/Personal/Projects/Docker/oracle-docker-images/OracleDatabase/SingleInstance/dockerfiles
+./buildDockerImage.sh -v 19.3.0 -e -i 
+
+
+docker run -it -d --name oracle19 -h oracle19 -p 0.0.0.0:1521:1521 -p 0.0.0.0:5500:5500 -e ORACLE_SID=oradba -e ORACLE_PDB=oradba_pb -e ORACLE_PWD=oracle -e INIT_SGA_SIZE=3000 -e INIT_PGA_SIZE=500 -e ORACLE_EDITION=enterprise -e ORACLE_CHARACTERSET=AL32UTF8 -v /Users/dan/Library/Mobile\ Documents/com~apple~CloudDocs/Personal/Projects/Docker/oracle:/opt/oracle/oradata oracle/database:19.3.0-ee
+
+
+#
+#Docker MongoDB
+
+docker run -it -d -p 0.0.0.0:27017:27017 -p 0.0.0.0:28017:28017 -e MONGO_INITDB_ROOT_USERNAME=mongoadmin -e MONGO_INITDB_ROOT_PASSWORD=mongo -e MONGO_INITDB_DATABASE=dandb --name mongo1 -h mongo1 mongo
+
+mongo mongodb://mongoadmin:mongo@127.0.0.1:27017/admin
+
+#
+#Docker SQL Server
+
+docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=Qq123456@@" -p 1433:1433 --name sql1 -h sql1 -d mcr.microsoft.com/mssql/server:2019-latest
+
+
+docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=Qq123456@@" -p 1433:1433 --name sql1 -h sql1 -d -v /Users/dan/Library/Mobile\ Documents/com~apple~CloudDocs/Personal/Projects/Docker/sqlserver:/var/opt/mssql mcr.microsoft.com/mssql/server:2019-latest 
+
+
+
+#
+#Docker Jupyter Notebook
+
+docker run -it -d -p 8888:8888 -v "$PWD":/home/jovyan/work --name ju-note1 -h ju-note1 jupyter/scipy-notebook:17aba6048f44
+
+docker run -it -d --rm -p 8888:8888 -v "$PWD":/root/mount/ --name ju-note2 -h ju-note2 heatonresearch/jupyter-python-r:latest
+
+
+#
+#Couchbase
+
+docker run -d --name couch1 -h couch1 -p 8091-8094:8091-8094 -p 11210:11210 couchbase
+
+
+http://localhost:8091
+
+#
+#MySQL
+
+docker run -d --name my1 -h my1 --env="MYSQL_ROOT_PASSWORD=mysql" -p 3306:3306 --volume=/Users/dan/Library/Mobile\ Documents/com~apple~CloudDocs/Personal/Projects/Docker/mysql/conf.d:/etc/mysql/conf.d --volume=/Users/dan/Library/Mobile\ Documents/com~apple~CloudDocs/Personal/Projects/Docker/mysql/mysql-data:/var/lib/mysql mysql
+
+
+cd /Users/dan/Library/Mobile\ Documents/com~apple~CloudDocs/Personal/Projects/Docker/mysql
+
+
+#
+#PostgreSQL
+
+docker run -d -p 0.0.0.0:5432:5432 --name post1 -h post1 -e POSTGRES_PASSWORD=postgres postgres -c shared_buffers=256MB -c max_connections=200
+
+
+docker run -d -p 0.0.0.0:5432:5432 --name post1 -h post1 -e POSTGRES_PASSWORD=postgres -e PGDATA=/var/lib/postgresql/data -v /Users/dan/Library/Mobile\ Documents/com~apple~CloudDocs/Personal/Projects/Docker/postgresql/data:/var/lib/postgresql/data postgres -c shared_buffers=256MB -c max_connections=200
+
+
+#pgAdmin4
+
+docker pull dpage/pgadmin
+
+docker run -d -p 0.0.0.0:5050:80 --name pgadmin4 -h pgadmin4 -e "PGADMIN_DEFAULT_EMAIL=demo.acco.van@gmail.com" -e "PGADMIN_DEFAULT_PASSWORD=a12345678" -d  dpage/pgadmin4
+
+#
+
+#PHPmyAdmin
+
+docker run --name phpmyadmin  -h phpmyadmin -d --link my1:db -p 0.0.0.0:8081:80 phpmyadmin/phpmyadmin
+
+docker run --name phpmyadmin-dandba01-aws  -h phpmyadmin-aws -d -e PMA_HOST=dandba01.cluster-couytgkzr2dn.us-west-2.rds.amazonaws.com -p 8082:80 phpmyadmin/phpmyadmin 
+
+#
+
+#!/bin/bash
+# See: https://docs.microsoft.com/en-us/sql/linux/tutorial-restore-backup-in-sql-server-container
+
+SA_PASSWORD=<YourStrong!Passw0rd>
+
+function show_info {
+    tput setaf 6; echo $1; tput sgr 0
+}
+
+show_info 'Pulling the container image...'
+sudo docker pull microsoft/mssql-server-linux:2017-latest
+
+show_info 'Running the container image...'
+sudo docker run -e 'ACCEPT_EULA=Y' -e "MSSQL_SA_PASSWORD=$SA_PASSWORD" \
+   --name 'sql1' -p 1401:1433 \
+   -v sql1data:/var/opt/mssql \
+   -d microsoft/mssql-server-linux:2017-latest
+
+show_info 'Copying the backup into the container...'
+sudo docker exec -it sql1 mkdir -p /var/opt/mssql/backup
+curl -L -o wwi.bak 'https://github.com/Microsoft/sql-server-samples/releases/download/wide-world-importers-v1.0/WideWorldImporters-Full.bak'
+sudo docker cp wwi.bak sql1:/var/opt/mssql/backup
+
+show_info 'Restoring the database...'
+sudo docker exec -it sql1 /opt/mssql-tools/bin/sqlcmd \
+   -S localhost -U SA -P "$SA_PASSWORD" \
+   -Q 'RESTORE DATABASE WideWorldImporters FROM DISK = "/var/opt/mssql/backup/wwi.bak" WITH MOVE "WWI_Primary" TO "/var/opt/mssql/data/WideWorldImporters.mdf", MOVE "WWI_UserData" TO "/var/opt/mssql/data/WideWorldImporters_userdata.ndf", MOVE "WWI_Log" TO "/var/opt/mssql/data/WideWorldImporters.ldf", MOVE "WWI_InMemory_Data_1" TO "/var/opt/mssql/data/WideWorldImporters_InMemory_Data_1"'
+
+show_info 'Cleaning up...'
+rm wwi.bak
+
+show_info 'Done!'
